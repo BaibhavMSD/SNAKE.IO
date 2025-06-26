@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Snake Game</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>🐍 Snake Game</h1>
+  <div class="score-board">
+    Score: <span id="score">0</span> | High Score: <span id="high-score">0</span>
+  </div>
+  <canvas id="gameCanvas" width="400" height="400"></canvas>
+
+  <div id="controls">
+    <button onclick="setDirection('UP')">⬆️</button>
+    <div>
+      <button onclick="setDirection('LEFT')">⬅️</button>
+      <button onclick="setDirection('RIGHT')">➡️</button>
+    </div>
+    <button onclick="setDirection('DOWN')">⬇️</button>
+  </div>
+
+  <div class="controls">
+    <label for="difficulty">Difficulty:</label>
+    <select id="difficulty">
+      <option value="easy">Easy</option>
+      <option value="medium" selected>Medium</option>
+      <option value="hard">Hard</option>
+    </select>
+  </div>
+
+  <div class="game-over" id="gameOver">
+    Game Over!<br />
+    <button id="restartBtn">Restart Game</button>
+  </div>
+
+  <audio id="eatSound" src="https://assets.mixkit.co/sfx/preview/mixkit-chewing-something-crunchy-2244.mp3"></audio>
+  <audio id="gameOverSound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.wav"></audio>
+
+  <script src="script.js"></script>
+</body>
+</html>
+
+body {
+  font-family: Arial, sans-serif;
+  background-color: #111;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 20px;
+  margin: 0;
+}
+
+h1 {
+  margin: 0 0 10px;
+}
+
+.score-board {
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+canvas {
+  background-color: #000;
+  border: 4px solid #fff;
+  box-shadow: 0 0 20px lime;
+}
+
+#controls {
+  display: none;
+  margin-top: 10px;
+  text-align: center;
+}
+
+#controls button {
+  font-size: 24px;
+  margin: 5px;
+  padding: 10px 20px;
+  background-color: #444;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+#controls button:hover {
+  background-color: #666;
+}
+
+.controls {
+  margin-top: 10px;
+  font-size: 16px;
+  color: #fff;
+}
+
+.controls select {
+  padding: 5px 10px;
+  margin-left: 10px;
+  font-size: 16px;
+  border-radius: 5px;
+}
+
+.game-over {
+  display: none;
+  text-align: center;
+  margin-top: 20px;
+  font-size: 20px;
+  color: red;
+}
+
+#restartBtn {
+  margin-top: 10px;
+  font-size: 16px;
+  padding: 8px 16px;
+}
+
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+const box = 20;
+const rows = canvas.width / box;
+
+let snake, food, direction, score, highScore, gameOver;
+let moveDelay = 150;
+let lastMoveTime = 0;
+
+const scoreEl = document.getElementById("score");
+const highScoreEl = document.getElementById("high-score");
+const gameOverEl = document.getElementById("gameOver");
+const restartBtn = document.getElementById("restartBtn");
+const controls = document.getElementById("controls");
+const difficultySelect = document.getElementById("difficulty");
+const eatSound = document.getElementById("eatSound");
+const gameOverSound = document.getElementById("gameOverSound");
+
+const speedMap = {
+  easy: 200,
+  medium: 150,
+  hard: 80
+};
+
+function init() {
+  snake = [{ x: 5 * box, y: 5 * box }];
+  direction = "RIGHT";
+  food = randomFood();
+  score = 0;
+  gameOver = false;
+  moveDelay = speedMap[difficultySelect.value] || 150;
+  lastMoveTime = 0;
+
+  highScore = localStorage.getItem("snakeHighScore") || 0;
+  highScoreEl.textContent = highScore;
+  scoreEl.textContent = score;
+
+  gameOverEl.style.display = "none";
+  controls.style.display = window.innerWidth < 600 ? "block" : "none";
+
+  requestAnimationFrame(gameLoop);
+}
+
+function setDirection(newDir) {
+  const opposite = { UP: "DOWN", DOWN: "UP", LEFT: "RIGHT", RIGHT: "LEFT" };
+  if (direction !== opposite[newDir]) direction = newDir;
+}
+
+document.addEventListener("keydown", (e) => {
+  const keys = {
+    ArrowUp: "UP",
+    ArrowDown: "DOWN",
+    ArrowLeft: "LEFT",
+    ArrowRight: "RIGHT"
+  };
+  if (keys[e.key]) setDirection(keys[e.key]);
+});
+
+function randomFood() {
+  return {
+    x: Math.floor(Math.random() * rows) * box,
+    y: Math.floor(Math.random() * rows) * box
+  };
+}
+
+function draw() {
+  ctx.fillStyle = "#000";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "red";
+  ctx.fillRect(food.x, food.y, box, box);
+
+  snake.forEach((part, i) => {
+    ctx.fillStyle = i === 0 ? "lime" : "green";
+    ctx.fillRect(part.x, part.y, box, box);
+  });
+}
+
+function update() {
+  const head = { ...snake[0] };
+
+  if (direction === "LEFT") head.x -= box;
+  if (direction === "RIGHT") head.x += box;
+  if (direction === "UP") head.y -= box;
+  if (direction === "DOWN") head.y += box;
+
+  if (
+    head.x < 0 || head.x >= canvas.width ||
+    head.y < 0 || head.y >= canvas.height ||
+    snake.some(segment => segment.x === head.x && segment.y === head.y)
+  ) {
+    gameOver = true;
+    gameOverEl.style.display = "block";
+    gameOverSound.play();
+    return;
+  }
+
+  snake.unshift(head);
+
+  if (head.x === food.x && head.y === food.y) {
+    food = randomFood();
+    score++;
+    scoreEl.textContent = score;
+    eatSound.play();
+
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem("snakeHighScore", highScore);
+      highScoreEl.textContent = highScore;
+    }
+  } else {
+    snake.pop();
+  }
+}
+
+function gameLoop(timestamp) {
+  if (gameOver) return;
+
+  if (!lastMoveTime || timestamp - lastMoveTime > moveDelay) {
+    update();
+    draw();
+    lastMoveTime = timestamp;
+  }
+
+  requestAnimationFrame(gameLoop);
+}
+
+restartBtn.addEventListener("click", init);
+difficultySelect.addEventListener("change", init);
+
+init();
